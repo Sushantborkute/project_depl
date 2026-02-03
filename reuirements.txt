@@ -1,0 +1,10 @@
+streamlit
+pandas
+numpy
+plotly
+scikit-learn
+langchain
+langchain-chroma
+langchain-google-genai
+google-generativeai
+chromadb
