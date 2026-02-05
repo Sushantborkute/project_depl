@@ -24,13 +24,24 @@ st.set_page_config(
     layout="wide"
 )
 
-# Sidebar Controls for Visualization (Tab 3)
+# Sidebar Controls
 st.sidebar.title("⚙️ Global Explorer Settings")
 dark_mode = st.sidebar.toggle("🌙 Dark Mode", value=False)
 top_n = st.sidebar.number_input("Top N records for Map", min_value=1, max_value=100, value=10)
 plotly_template = "plotly_dark" if dark_mode else "plotly"
 
-# Custom CSS for UI
+# ------------------------------------------
+# SESSION STATE INITIALIZATION  ✅ ADDED
+# ------------------------------------------
+if "resume_ready" not in st.session_state:
+    st.session_state.resume_ready = False
+
+if "resume_data" not in st.session_state:
+    st.session_state.resume_data = {}
+
+# ------------------------------------------
+# CUSTOM CSS
+# ------------------------------------------
 st.markdown("""
 <style>
 .chat-box { padding: 14px; border-radius: 10px; margin-bottom: 10px; font-size: 15px; line-height: 1.6; }
@@ -43,38 +54,40 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # ------------------------------------------
-# 2. API & DATA INITIALIZATION
+# API & DATA INITIALIZATION
 # ------------------------------------------
 API_KEY = os.getenv("GOOGLE_API_KEY")
+
+if not API_KEY:
+    st.error("Google API Key not found.")
+    st.stop()
+
 client = genai_v2.Client(api_key=API_KEY)
 os.environ["GOOGLE_API_KEY"] = API_KEY
 
 @st.cache_data
 def load_job_data():
-    # Make sure 'ai_job_dataset.csv' is in your directory
     return pd.read_csv("ai_job_dataset.csv")
 
 @st.cache_resource
 def load_salary_model():
-    with open("salary_prediction_model.pkl", "rb") as f:
+    with open("salary_model.pkl", "rb") as f:
         return pickle.load(f)
 
 df = load_job_data()
 model = load_salary_model()
 
 # ------------------------------------------
-# 3. TABS LAYOUT
+# TABS
 # ------------------------------------------
 tab1, tab2, tab3 = st.tabs(["📊 Predict Your Salary", "🤖 AI Powered Chatbot", "🌍 Global Search"])
 
-# -----------------------------------------------------------------------------------
+# ===================================================================================
 # TAB 1 — SALARY PREDICTION
-# -----------------------------------------------------------------------------------
+# ===================================================================================
 with tab1:
     st.markdown("<div class='big-title'>💼 Salary Prediction Assistant</div>", unsafe_allow_html=True)
-    st.write("Upload your resume and fill in job details to predict an accurate salary estimate.")
 
-    # Mapping dictionaries
     employment_type_map = {
         "Full Time": "FT",
         "Part Time": "PT",
@@ -96,102 +109,138 @@ with tab1:
 
     col1, col2 = st.columns(2)
 
+    # ------------------ JOB INFO ------------------
     with col1:
         st.markdown("<div class='section-header'>📌 Job Information</div>", unsafe_allow_html=True)
 
-        # User sees full form
-        employment_type_full = st.selectbox(
-            "Employment Type",
-            list(employment_type_map.keys())
-        )
+        employment_type = employment_type_map[
+            st.selectbox("Employment Type", list(employment_type_map.keys()))
+        ]
 
         company_location = st.text_input("Company Country")
-
-        company_size_full = st.selectbox(
-            "Company Size",
-            list(company_size_map.keys())
-        )
+        company_size = company_size_map[
+            st.selectbox("Company Size", list(company_size_map.keys()))
+        ]
 
         industry = st.text_input("Industry")
+        remote_ratio = remote_ratio_map[
+            st.selectbox("Remote Ratio", list(remote_ratio_map.keys()))
+        ]
 
-        remote_ratio_full = st.selectbox(
-            "Remote Ratio",
-            list(remote_ratio_map.keys())
-        )
-
-        # Convert to short forms (stored variables)
-        employment_type = employment_type_map[employment_type_full]
-        company_size = company_size_map[company_size_full]
-        remote_ratio = remote_ratio_map[remote_ratio_full]
-
-
+    # ------------------ RESUME UPLOAD ------------------
     with col2:
         st.markdown("<div class='section-header'>📄 Upload Resume</div>", unsafe_allow_html=True)
         uploaded_file = st.file_uploader("Upload Resume (PDF)", type=["pdf"])
-        
-        job_title = None
-        experience_level = None
-        education_required = None
-        num_required_skills = 0
-        years_experience = 0
 
         if uploaded_file:
-            pdf_bytes = uploaded_file.read()
-            prompt = """Extract the following JSON fields from the provided resume. Output ONLY valid JSON.
-            { "job_title": "", "experience_level": "EN | MI | SE | EX", "education_required": "Associate | Bachelor | Master | PhD", "num_required_skills": 0, "years_experience": 0 }"""
-            
             try:
-                pdf_part = genai.types.Part.from_bytes(data=pdf_bytes, mime_type="application/pdf")
-                response = client.models.generate_content(model="gemini-2.5-flash", contents=[prompt, pdf_part])
-                
-                cleaned_text = response.text.strip().replace("```json", "").replace("```", "").strip()
-                result = json.loads(cleaned_text)
-                job_title = result.get("job_title", "N/A")
-                experience_level = result.get("experience_level", "N/A")
-                education_required = result.get("education_required", "N/A")
-                num_required_skills = int(result.get("num_required_skills", 0))
-                years_experience = int(result.get("years_experience", 0))
-                st.success("Resume processed successfully!")
+                pdf_bytes = uploaded_file.read()
+                prompt = """Extract the following JSON fields from the provided resume. Output ONLY valid JSON.
+                {
+                  "job_title": "",
+                  "experience_level": "EN | MI | SE | EX",
+                  "education_required": "Associate | Bachelor | Master | PhD",
+                  "num_required_skills": 0,
+                  "years_experience": 0
+                }"""
+
+                pdf_part = genai.types.Part.from_bytes(
+                    data=pdf_bytes,
+                    mime_type="application/pdf"
+                )
+
+                response = client.models.generate_content(
+                    model="gemini-2.5-flash",
+                    contents=[prompt, pdf_part]
+                )
+
+                cleaned = response.text.replace("```json", "").replace("```", "").strip()
+                result = json.loads(cleaned)
+
+                st.session_state.resume_data = {
+                    "job_title": result.get("job_title", "N/A"),
+                    "experience_level": result.get("experience_level", "N/A"),
+                    "education_required": result.get("education_required", "N/A"),
+                    "num_required_skills": int(result.get("num_required_skills", 0)),
+                    "years_experience": int(result.get("years_experience", 0))
+                }
+
+                st.session_state.resume_ready = True
+                st.success("✅ Resume processed successfully!")
+
             except Exception as e:
+                st.session_state.resume_ready = False
                 st.error(f"❌ Error reading resume: {e}")
+        else:
+            st.session_state.resume_ready = False
 
-    if st.button("🔮 Predict Salary", key="salary_btn"):
-        user_df = pd.DataFrame([{
-            "job_title": job_title, "experience_level": experience_level, "employment_type": employment_type,
-            "company_location": company_location, "company_size": company_size, "education_required": education_required,
-            "industry": industry, "years_experience": years_experience, "num_required_skills": num_required_skills,
-            "remote_ratio": str(remote_ratio)
-        }])
-        log_salary = model.predict(user_df)[0]
-        salary_usd = np.expm1(log_salary)
-        st.markdown(f"<div style='padding:20px; background:#f0f2f6; border-radius:10px;'><h3 style='color:#2E7D32;'>💲 Predicted Salary (USD)</h3><h1 style='color:#2E7D32;'>${salary_usd:,.2f}</h1></div>", unsafe_allow_html=True)
+    company_ok = bool(company_location.strip())
+    industry_ok = bool(industry.strip())
+    # ------------------ PREDICT BUTTON (SAFE) ------------------
+    if not st.session_state.resume_ready:
+        st.info("📄 Upload a resume,company country, industry to enable salary prediction.")
 
-# -----------------------------------------------------------------------------------
-# TAB 2 — RAG CHATBOT
-# -----------------------------------------------------------------------------------
+    if st.session_state.resume_ready and company_ok and industry_ok:
+        if st.button("🔮 Predict Salary", key="salary_btn"):
+            d = st.session_state.resume_data
+
+            user_df = pd.DataFrame([{
+                "job_title": d["job_title"],
+                "experience_level": d["experience_level"],
+                "employment_type": employment_type,
+                "company_location": company_location,
+                "company_size": company_size,
+                "education_required": d["education_required"],
+                "industry": industry,
+                "years_experience": d["years_experience"],
+                "num_required_skills": d["num_required_skills"],
+                "remote_ratio": str(remote_ratio)
+            }])
+
+            salary = np.expm1(model.predict(user_df)[0])
+
+            st.markdown(
+                f"""
+                <div style='padding:20px; background:#f0f2f6; border-radius:10px;'>
+                    <h3 style='color:#2E7D32;'>💲 Predicted Salary (USD)</h3>
+                    <h1 style='color:#2E7D32;'>${salary:,.2f}</h1>
+                </div>
+                """,
+                unsafe_allow_html=True
+            )
+
+# ===================================================================================
+# TAB 2 — CHATBOT (UNCHANGED)
+# ===================================================================================
 with tab2:
     st.markdown("<div class='big-title'>🤖 RAG AI Chatbot</div>", unsafe_allow_html=True)
-    
+
     embedding_function = GoogleGenerativeAIEmbeddings(model="models/text-embedding-004")
     llm = ChatGoogleGenerativeAI(model="gemini-2.5-flash", temperature=0.2)
-    chroma = Chroma(persist_directory="./chroma", collection_name="job_dataset", embedding_function=embedding_function)
+    chroma = Chroma(persist_directory="./chroma", collection_name="job_dataset",
+                    embedding_function=embedding_function)
 
     if "chat_history" not in st.session_state:
         st.session_state.chat_history = []
 
-    user_query = st.text_input("Ask job or salary-related questions:", key="chat_input")
+    user_query = st.text_input("Ask job or salary-related questions:")
     if st.button("Send 🚀"):
-        if user_query:
-            docs = chroma.similarity_search(query=user_query, k=15)
-            context = "\n\n".join([doc.page_content for doc in docs])
-            prompt = f"Answer query ONLY based on context. If not found, say I don't know.\nQuery: {user_query}\nContext: {context}"
-            answer = llm.invoke(prompt).content
-            st.session_state.chat_history.append(("You", user_query))
-            st.session_state.chat_history.append(("Bot", answer))
+        docs = chroma.similarity_search(user_query, k=15)
+        context = "\n\n".join(d.page_content for d in docs)
+        answer = llm.invoke(
+            f"Answer ONLY using context.\nQuery:{user_query}\nContext:{context}"
+        ).content
+
+        st.session_state.chat_history.extend([
+            ("You", user_query),
+            ("Bot", answer)
+        ])
 
     for role, msg in st.session_state.chat_history:
-        st.markdown(f"<div class='chat-box {'user' if role=='You' else 'bot'}'><b>{role}:</b> {msg}</div>", unsafe_allow_html=True)
-
+        st.markdown(
+            f"<div class='chat-box {'user' if role=='You' else 'bot'}'><b>{role}:</b> {msg}</div>",
+            unsafe_allow_html=True
+        )
 # -----------------------------------------------------------------------------------
 # TAB 3 — GLOBAL TOP JOBS EXPLORER
 # -----------------------------------------------------------------------------------
