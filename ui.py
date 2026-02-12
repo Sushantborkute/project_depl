@@ -5,6 +5,7 @@ import numpy as np
 import pickle
 import json
 import os
+from langchain_huggingface import HuggingFaceEmbeddings
 import google.generativeai as genai
 from google import genai as genai_v2 # Standardizing name for the client
 from google import genai
@@ -215,7 +216,9 @@ with tab1:
 with tab2:
     st.markdown("<div class='big-title'>🤖 RAG AI Chatbot</div>", unsafe_allow_html=True)
 
-    embedding_function = GoogleGenerativeAIEmbeddings(model="models/text-embedding-004")
+    embedding_function = embedding_function = HuggingFaceEmbeddings(
+        model_name="sentence-transformers/all-MiniLM-L6-v2"
+    )
     llm = ChatGoogleGenerativeAI(model="gemini-2.5-flash", temperature=0.2)
     chroma = Chroma(persist_directory="./chroma", collection_name="job_dataset",
                     embedding_function=embedding_function)
@@ -351,4 +354,3 @@ with tab3:
 
     else:
         st.warning("No data found for the selected filters.")
-
