@@ -8,3 +8,4 @@ langchain-chroma
 langchain-google-genai
 google-generativeai
 chromadb
+pickle4
