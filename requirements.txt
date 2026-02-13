@@ -13,8 +13,10 @@ scikit-learn
 langchain
 langchain-chroma
 langchain-google-genai
+langchain-huggingface
 google-generativeai
 
 chromadb
 
 sentence-transformers
+
