@@ -1,13 +1,20 @@
+--extra-index-url https://download.pytorch.org/whl/cpu
+
+torch
+torchvision
+torchaudio
+
 streamlit
 pandas
 numpy
 plotly
 scikit-learn
+
 langchain
 langchain-chroma
 langchain-google-genai
 google-generativeai
+
 chromadb
-pickle4
-pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cpu
-pip install sentence-transformers
+
+sentence-transformers
