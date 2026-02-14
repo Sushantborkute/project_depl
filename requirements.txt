@@ -19,4 +19,6 @@ google-generativeai
 chromadb
 
 sentence-transformers
+pyarrow
+s3fs
 
