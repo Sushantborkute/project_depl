@@ -1,0 +1,3 @@
+.venv/
+chroma/chroma.sqlite3
+~bashrc
