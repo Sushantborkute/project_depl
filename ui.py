@@ -68,7 +68,7 @@ os.environ["GOOGLE_API_KEY"] = API_KEY
 
 @st.cache_data
 def load_job_data():
-    return pd.read_csv("ai_job_dataset.csv")
+    return pd.read_parquet("s3://rag-job-data-bucket-xyz/data/ai_job_dataset.parquet")
 
 @st.cache_resource
 def load_salary_model():
@@ -354,3 +354,4 @@ with tab3:
 
     else:
         st.warning("No data found for the selected filters.")
+
