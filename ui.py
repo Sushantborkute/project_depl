@@ -1,4 +1,5 @@
 import streamlit as st
+import s3fs
 import pandas as pd
 import plotly.express as px
 import numpy as np
@@ -72,9 +73,11 @@ def load_job_data():
 
 @st.cache_resource
 def load_salary_model():
-    with open("salary_model.pkl", "rb") as f:
-        return pickle.load(f)
+    fs = s3fs.S3FileSystem()
+    with fs.open("s3://rag-job-data-bucket-xyz/salary_model.pkl", "rb") as f:
+        model = pickle.load(f)
 
+    return model
 df = load_job_data()
 model = load_salary_model()
 
